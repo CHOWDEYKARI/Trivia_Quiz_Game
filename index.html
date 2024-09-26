@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Quiz Game</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: green;
+            font-family: Arial, sans-serif;
+        }
+
+        .text-center button{
+            color: blue;
+        }
+
+        .quiz-container {
+            color: blue;
+            
+            width: 100%;
+            max-width: 999px;
+            margin: auto;
+            padding: 20px;
+            border: 2px solid #007bff;
+            border-radius: 10px;
+            background-color:yellow;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            position: relative;
+            animation: fadeIn 1s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        #usernameDisplay {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+            animation: blink 1.5s infinite;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+        #question {
+            font-size: 24px;
+              
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .answer {
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .answer:hover {
+            background-color: #e9ecef;
+        }
+        .message {
+            font-size: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+        .correct {
+            color: green;
+        }
+        .wrong {
+            color: red;
+        }
+        .scoreboard {
+            font-size: 20px;
+            margin: 10px 0;
+        }
+        .image-answer {
+            width: 50px; /* Adjust as necessary */
+            height: 50px; /* Adjust as necessary */
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="quiz-container">
+    <h1 class="text-center">General Knowledge Quiz</h1>
+    <h4 class="text-center">CREATED AND DEVELOPED BY </br>MAHESHWER_CHOWDEYKARI</h4>
+    <div id="usernameDisplay"></div>
+    <div id="question"></div>
+    <div id="answers" class="mb-3"></div>
+    <div class="text-center scoreboard" id="scoreboard">Score: 0</div>
+    <div class="text-center">
+        <button id="startBtn" class="btn btn-success">Start the Game</button>
+        <button id="pauseBtn" class="btn btn-warning" disabled>Pause the Game</button>
+        <button id="restartBtn" class="btn btn-info" disabled>Restart the Game</button>
+        <button id="exitBtn" class="btn btn-danger">Exit the Game</button>
+        <button id="speakBtn" class="btn btn-primary" disabled>Speak Answer</button>
+    </div>
+    <div id="message" class="message"></div>
+</div>
+
+<script>
+    let questions = [];
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let interval;
+    let username;
+    let recognition;
+    let synth = window.speechSynthesis;
+
+    // Function to prompt for username
+    function askForUsername() {
+        username = prompt("Please enter your name and surname:");
+        if (username) {
+            document.getElementById("usernameDisplay").innerText = `Welcome, ${username}!`;
+        }
+    }
+
+    async function fetchQuestions() {
+        const response = await fetch('https://opentdb.com/api.php?amount=1000&type=multiple');
+        const data = await response.json();
+        questions = data.results.map(question => ({
+            question: question.question,
+            answers: [...question.incorrect_answers, question.correct_answer],
+            correct: question.incorrect_answers.length // Index of correct answer
+        }));
+    }
+
+    function startGame() {
+        askForUsername(); // Ask for username before starting
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("pauseBtn").disabled = false;
+        document.getElementById("restartBtn").disabled = false;
+        document.getElementById("speakBtn").disabled = false;
+        currentQuestionIndex = 0;
+        score = 0;
+        updateScoreboard();
+        displayQuestion();
+    }
+
+    function updateScoreboard() {
+        document.getElementById("scoreboard").innerText = `Score: ${score}`;
+    }
+
+    async function displayQuestion() {
+        if (currentQuestionIndex < questions.length) {
+            const questionElement = document.getElementById("question");
+            const answersElement = document.getElementById("answers");
+            const messageElement = document.getElementById("message");
+            messageElement.style.display = "none";
+
+            // Shuffle answers
+            const shuffledAnswers = [...questions[currentQuestionIndex].answers].sort(() => Math.random() - 0.5);
+            questionElement.innerHTML = questions[currentQuestionIndex].question;
+            answersElement.innerHTML = "";
+            shuffledAnswers.forEach((answer, index) => {
+                const button = document.createElement("div");
+                button.innerHTML = `<img class="image-answer" src="https://via.placeholder.com/50" alt="Answer Image">${answer}`;
+                button.classList.add("answer", "btn", "btn-light");
+                button.onclick = () => checkAnswer(answer);
+                answersElement.appendChild(button);
+            });
+
+            // Automatically go to the next question after 9 seconds
+            interval = setTimeout(() => {
+                currentQuestionIndex++;
+                displayQuestion();
+            }, 9000);
+        } else {
+            endGame();
+        }
+    }
+
+    function checkAnswer(selectedAnswer) {
+        clearTimeout(interval); // Stop the timer
+        const correctAnswer = questions[currentQuestionIndex].answers[questions[currentQuestionIndex].correct];
+        const messageElement = document.getElementById("message");
+
+        if (selectedAnswer === correctAnswer) {
+            score++;
+            messageElement.innerText = "Right Answer ✅";
+            messageElement.className = "message correct";
+            speak("Right Answer");
+        } else {
+            messageElement.innerText = "Wrong Answer ❌";
+            messageElement.className = "message wrong";
+            speak("Wrong Answer");
+        }
+
+        messageElement.style.display = "block";
+        updateScoreboard();
+
+        setTimeout(() => {
+            currentQuestionIndex++;
+            displayQuestion();
+        }, 2000); // Wait for 2 seconds before showing the next question
+    }
+
+    function speak(text) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        synth.speak(utterance);
+    }
+
+    function startSpeechRecognition() {
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onresult = (event) => {
+                const spokenText = event.results[0][0].transcript.toLowerCase();
+                checkSpokenAnswer(spokenText);
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error', event.error);
+            };
+
+            recognition.start();
+        } else {
+            alert("Sorry, your browser does not support speech recognition.");
+        }
+    }
+
+    function checkSpokenAnswer(spokenText) {
+        const correctAnswer = questions[currentQuestionIndex].answers[questions[currentQuestionIndex].correct].toLowerCase();
+        if (spokenText.includes(correctAnswer)) {
+            checkAnswer(correctAnswer);
+        } else {
+            checkAnswer(questions[currentQuestionIndex].answers[questions[currentQuestionIndex].correct]);
+        }
+    }
+
+    function pauseGame() {
+        clearTimeout(interval);
+        document.getElementById("pauseBtn").disabled = true;
+    }
+
+    function restartGame() {
+        pauseGame();
+        currentQuestionIndex = 0;
+        score = 0;
+        updateScoreboard();
+        displayQuestion();
+    }
+
+    function endGame() {
+        alert(`Quiz Finished! Your score is ${score}/${questions.length}`);
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("pauseBtn").disabled = true;
+        document.getElementById("restartBtn").disabled = true;
+        document.getElementById("speakBtn").disabled = true;
+    }
+
+    document.getElementById("startBtn").onclick = async () => {
+        await fetchQuestions(); // Fetch questions before starting the game
+        startGame();
+    };
+    document.getElementById("pauseBtn").onclick = pauseGame;
+    document.getElementById("restartBtn").onclick = restartGame;
+    document.getElementById("exitBtn").onclick = () => {
+        alert("Exiting the game.");
+        window.close(); // This will not work in some browsers due to security settings
+    };
+    document.getElementById("speakBtn").onclick = startSpeechRecognition;
+</script>
+
+</body>
+</html>
